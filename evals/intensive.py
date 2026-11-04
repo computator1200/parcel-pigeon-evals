@@ -265,23 +265,37 @@ def flaky(args: argparse.Namespace) -> None:
         for row in load(f):
             attempts.setdefault(row["case"]["id"], []).append(row)
     split = {"visible": Counter(), "heldout": Counter()}
-    ids = {"bot": [], "judge": []}
+    ids = {"bot": [], "judge": [], "nochecks": []}
+    judge_only_rows = []
     for cid, s in states.items():
         if s["state"] != "flaky":
             continue
         rows = [r for r in attempts.get(cid, []) if attempt_outcome(r) in ("pass", "fail")]
         checks = {tuple(c.get("passed") for c in r["checks"]) for r in rows}
-        kind = "bot" if len(checks) > 1 else "judge"
+        kind = "nochecks" if rows and not rows[0]["checks"] else "bot" if len(checks) > 1 else "judge"
         split[s["split"]][kind] += 1
+        if kind != "bot" and rows:
+            judge_only_rows.append(rows[0])
         if s["split"] == "visible":
             ids[kind].append(cid)
     lines = [f"# Flaky cases in {args.label}: bot noise vs judge noise", "",
-             "| Split | Flaky | Bot changed (checks flipped) | Judge only (checks identical, verdict flipped) |", "|---|---|---|---|"]
+             "| Split | Flaky | Bot changed (checks flipped) | Judge only (checks identical, verdict flipped) | No checks (can't tell) |",
+             "|---|---|---|---|---|"]
     for sp, c in split.items():
         if sum(c.values()):
-            lines.append(f"| {sp} | {sum(c.values())} | {c['bot']} | {c['judge']} |")
-    lines += ["", f"Visible, bot noise: {', '.join(ids['bot']) or '-'}", "", f"Visible, judge noise: {', '.join(ids['judge']) or '-'}", "",
-              "Held-out ids stay sealed. A case with no checks lands in 'judge only' by construction.", ""]
+            lines.append(f"| {sp} | {sum(c.values())} | {c['bot']} | {c['judge']} | {c['nochecks']} |")
+    lines += ["", f"Visible, bot noise: {', '.join(ids['bot']) or '-'}", "", f"Visible, judge only: {', '.join(ids['judge']) or '-'}", "",
+              f"Visible, no checks: {', '.join(ids['nochecks']) or '-'}", "",
+              "'Checks identical' means the facts the checks test didn't change; the wording did "
+              "(identical answers reuse the cached verdict). Held-out ids stay sealed.", ""]
+    if args.rejudge and judge_only_rows:
+        def regrade(row):
+            return [(_judge(row["case"], row["result"]) or {}).get("passed") for _ in range(args.rejudge)]
+        with ThreadPoolExecutor(4) as pool:
+            verdicts = list(pool.map(regrade, judge_only_rows))
+        flips = sum(len(set(v)) > 1 for v in verdicts)
+        lines += [f"**Same answer, re-judged {args.rejudge}x (no cache):** {flips} of {len(verdicts)} judge-only/no-check "
+                  "flaky cases got different verdicts on the identical answer. This is the judge disagreeing with itself.", ""]
     report = "\n".join(lines)
     (RESULTS / f"intensive-flaky-{args.label}.md").write_text(report)
     print(report)
@@ -303,6 +317,7 @@ def main() -> None:
     c.add_argument("after")
     fl = sub.add_parser("flaky")
     fl.add_argument("label")
+    fl.add_argument("--rejudge", type=int, default=0, help="re-grade one identical answer N times, uncached")
     args = parser.parse_args()
     {"run": run, "compare": compare, "flaky": flaky}[args.cmd](args)
 
