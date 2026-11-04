@@ -93,7 +93,54 @@ def no_pii(result: dict, value: bool = True) -> bool:
     return not any(re.search(p, text) for p in patterns)
 
 
+
+def exact_tool_count(result: dict, value: int) -> bool:
+    return len(result.get("tool_calls") or []) == int(value)
+
+
+def tool_not_called(result: dict, value: str) -> bool | None:
+    called = tool_called(result, value)
+    return None if called is None else not called
+
+
+def max_tokens(result: dict, value: int) -> bool | None:
+    tokens = result.get("tokens")
+    if tokens is None:
+        return None
+    return int(tokens) <= int(value)
+
+
+def contains_any(result: dict, value: list[str]) -> bool:
+    answer = str(result.get("answer") or "").lower()
+
+    if not value:
+        return False
+
+    return any(
+        str(item).lower() in answer
+        for item in value
+    )
+
+
+def contains_all(result: dict, value: list[str]) -> bool:
+    answer = str(result.get("answer") or "").lower()
+
+    if not value:
+        return False
+
+    return all(
+        str(item).lower() in answer
+        for item in value
+    )
+
+
 CHECKS = {
+
+    "exact_tool_count": exact_tool_count,
+    "tool_not_called": tool_not_called,
+    "max_tokens": max_tokens,
+    "contains_any": contains_any,
+    "contains_all": contains_all,
     "contains": contains,
     "not_contains": not_contains,
     "tool_called": tool_called,
