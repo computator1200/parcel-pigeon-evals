@@ -146,7 +146,7 @@ def run(args: argparse.Namespace) -> None:
             "visible_file": str(visible_path), "minutes": round((time.perf_counter() - start) / 60, 1)}
     (RESULTS / f"intensive-{args.label}.json").write_text(json.dumps({"meta": meta, "states": states}, indent=1))
 
-    report = render_run(meta, states)
+    report = render_run(meta, states).replace("## Caveats", "\n".join(judge_only_lines(args.label, states)) + "\n\n## Caveats", 1)
     (RESULTS / f"intensive-{args.label}.md").write_text(report)
     print(report)
     print(f"Judge calls: {_hits['call']}, reused for identical answers: {_hits['hit']}")
@@ -172,6 +172,33 @@ def render_run(meta: dict, states: dict[str, dict]) -> str:
         lines += [f"**Held-out not stably passing:** {len(held_bad)} cases (ids only, inputs sealed): " + ", ".join(held_bad), ""]
     lines += ["## Caveats", *[f"- {c}" for c in CAVEATS], ""]
     return "\n".join(lines)
+
+
+def judge_only(label: str) -> set[str] | None:
+    """Cases whose every failed attempt passed all deterministic checks: the judge alone failed them.
+
+    Read from the saved repeat files, so it works on runs made before this existed.
+    """
+    files = sorted(RESULTS.glob(f"{label}-r*.jsonl"))
+    if not files:
+        return None
+    failed: dict[str, list[bool]] = {}
+    for f in files:
+        for row in load(f):
+            if attempt_outcome(row) == "fail":
+                checks_ok = all(c.get("passed") is not False for c in row["checks"])
+                failed.setdefault(row["case"]["id"], []).append(checks_ok)
+    return {cid for cid, oks in failed.items() if all(oks)}
+
+
+def judge_only_lines(label: str, states: dict[str, dict]) -> list[str]:
+    ids = judge_only(label)
+    if ids is None:
+        return [f"_Judge-only split for {label}: copy results/{label}-r*.jsonl here to see it._"]
+    vis = sorted(c for c in ids if states.get(c, {}).get("split") == "visible")
+    held = sum(states.get(c, {}).get("split") == "heldout" for c in ids)
+    return [f"**{label}, failed on the judge alone (every check passed):** {len(vis)} visible, {held} held-out"
+            + (f" ({', '.join(vis)})" if vis else "")]
 
 
 def compare(args: argparse.Namespace) -> None:
@@ -217,6 +244,7 @@ def compare(args: argparse.Namespace) -> None:
         verdict = f"Held-out improved ({h['fixed']} fixed) with no visible change."
     else:
         verdict = "No stable change."
+    lines += ["", *judge_only_lines(args.before, before), "", *judge_only_lines(args.after, after)]
     lines += ["", f"**Verdict:** {verdict}", "", "## Caveats", *[f"- {c}" for c in CAVEATS], ""]
     report = "\n".join(lines)
     (RESULTS / f"intensive-compare-{args.before}-{args.after}.md").write_text(report)
