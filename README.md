@@ -85,13 +85,16 @@ Using a hosted model instead? See [docs/providers.md](docs/providers.md).
 | `uv run python -m evals.calibrate sheet --results r.jsonl --n 8` | Build a hand-labelling sheet |
 | `uv run python -m evals.calibrate score` | Agreement %, DANGEROUS/CONSERVATIVE split, verbosity bias |
 | `uv run python -m evals.intensive run --label base` | Repeats + held-out split + flaky/inconclusive accounting |
+| `uv run python -m evals.intensive flaky base` | Splits flaky cases: bot changed vs checks couldn't see it |
+| `uv run python -m evals.intensive compare base fix-1` | Stable fail→pass only, with flaky counted separately |
+| `uv run python -m evals.judge_repeat --results results/base-r1.jsonl` | Same answer, repeated judge calls — is the judge stable? |
 
 Useful flags: `--only <case-id>`, `--no-judge`, `--workers N`.
 
 ### Why the extra tools exist
 
 - **`merge_cases`** — six people writing cases in six files is fast; the runner takes one. It fails loudly on invalid JSON (reported `file:line`), duplicate ids across files, unknown check types, and cases with nothing able to score them. An unknown check type silently scores as "not implemented" and looks like a gap in the demo, so this refuses to write.
-- **`calibrate`** — an uncalibrated judge is a random number generator with good manners. Hand-label 8 answers and it reports agreement, splits disagreements into **DANGEROUS** (judge passed, you failed it — ships a bad answer) and **CONSERVATIVE** (judge failed, you passed it — noise that hides real fixes), and measures **verbosity bias**. On the sample in this repo: 6/8 agreement, 1 dangerous, 1 conservative, and judge-passed answers ran **1.72× longer** than judge-failed ones.
+- **`calibrate`** — an uncalibrated judge is a random number generator with good manners. Hand-label 8 answers and it reports agreement, splits disagreements into **DANGEROUS** (judge passed, you failed it — ships a bad answer) and **CONSERVATIVE** (judge failed, you passed it — noise that hides real fixes), and reports the length difference between passed and failed answers. Sample it **randomly** (`--random`): a stratified sheet picks the interesting cases by design and cannot support an accuracy claim. On the random draw in this repo: 7/8 agreement, 1 dangerous, 0 conservative.
 - **`intensive`** — repeats every case 3× and counts a case once. Pass = all repeats pass, fail = none do, flaky = both; a fix only counts as stable-fail → stable-pass. Crashed agents and broken judges are **inconclusive**, which is never a pass. Held-out cases are shown as ids and totals only, so the person fixing the bot can run them without seeing them.
 
 ## Test case format
