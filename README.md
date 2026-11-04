@@ -42,7 +42,7 @@ What that supports, and what it doesn't:
 
 - **The fix is real, but modest — quote the transition, not the total.** Held-out: 4 cases went stable fail → stable pass, 1 went stable pass → stable fail. Visible: 2 and 1. The held-out total rose 30 → 49 mostly because 22 flaky cases happened to settle into passing, which is the same regression to the mean that inflates the visible number. The 4-vs-2 comparison is the defensible claim: the fix worked better on cases the fixer never saw.
 - **Visible +8 stable passes is partly regression to the mean.** 19 cases are still flaky, so 26 → 34 includes movement that would have happened anyway.
-- **Most remaining visible failures are judge-only** — 20 cases pass every deterministic check and fail the judge. Before blaming the bot, look at the judge.
+- **Most remaining visible failures are judge-only, narrowly defined** — 20 cases where every failed attempt had all checks green; 15 of those also passed at least once, and only 5 of the 8 stable failures are judge-only. The judge is still where most of the disagreement lives, but this is not 20 clean failures.
 - **A single run tells you almost nothing.** The 25-case single-run scorecard we ran first said "17/25 before, 17/25 after" with 4 fixed and 4 broken. Same code, same cases, different story: at 34% flakiness, a one-run delta of ±2 is inside the noise.
 
 ### Judge self-consistency
@@ -53,7 +53,7 @@ Read that narrowly: ten cases cannot establish stability — 10/10 is still cons
 
 ### Calibration
 
-One teammate hand-labelled a random draw of 8 base-run answers blind: **7/8 agreement (95% CI 53–98%)**, one **DANGEROUS** disagreement (judge passed an answer containing a customer's name and address), zero conservative. He then re-scored 8/8 after reading the judge's reasons — that is anchoring, not accuracy, and is reported as such.
+One teammate hand-labelled a random draw of 8 base-run answers blind: **7/8 agreement (95% CI 53–98%)**, one **DANGEROUS** disagreement (judge passed an answer containing a customer's home address), zero conservative. He then re-scored 8/8 after reading the judge's reasons — that is anchoring, not accuracy, and is reported as such.
 
 
 ## Quick start

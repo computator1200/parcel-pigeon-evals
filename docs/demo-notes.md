@@ -40,7 +40,7 @@ verdicts stable — the variance is the agent's wording, not the judge's mood.)
 
 - Blind hand labels: 6/8 agreement, one dangerous false pass (95% CI roughly 41–93%, one labeller).
 - The same labeller re-scored 8/8 after reading the judge's reasons. **That is anchoring, not accuracy.** We report it as evidence of anchoring.
-- Judge-passed answers ran 1.72× longer than judge-failed — with n=8 that is a hypothesis, not a causal estimate.
+- The 1.72× length effect from the stratified sheet did not replicate on a random draw (0.78×). Do not quote it.
 
 ## 5. What we changed because of it (30s)
 
