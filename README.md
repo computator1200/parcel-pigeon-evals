@@ -1,31 +1,130 @@
-# Judge the Agent 🟡
+# Judge the Agent — an eval harness for Parcel Pigeon's support bot
 
-> **Parcel Pigeon's** AI support bot goes live next week.
-> Your job: prove whether it's ready, with evidence instead of vibes.
+**Does the bot deserve to go live next week? This repo answers that with numbers.**
 
-## 🎯 What you'll build
+An evaluation harness built in one evening at [Judge the Agent](https://luma.com/h8zer2ek) (The Friendly Data Meetup London, Quantspark Blackfriars, 4 November 2026). It ships a deliberately weak customer-support agent, a growing suite of adversarial test cases, deterministic checks, an LLM judge — and the tooling to prove a fix actually worked rather than just feel like it did.
 
-- A **test set** of customer questions
-- **Automatic checks** and an **AI judge** that grade every answer
-- A **before/after scorecard** showing that your fix worked
+The question the hosts cared about most: **do you trust your judge?** So the repo measures that too.
 
-## ⚙️ Setup (10 min)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![uv](https://img.shields.io/badge/managed%20with-uv-261230)
+![cases](https://img.shields.io/badge/cases-61%20visible%20%2B%2066%20held--out-informational)
+![judge](https://img.shields.io/badge/judge-LLM%20%2B%20deterministic%20checks-6f42c1)
+![license](https://img.shields.io/badge/license-MIT-green)
 
-You need: [Docker](https://docs.docker.com/get-docker/) and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+---
+
+## What's measured
+
+Three signals, deliberately kept separate, because they fail differently:
+
+| Signal | What it tells you | Implemented in |
+|---|---|---|
+| **Deterministic checks** | Did the answer contain the right facts and avoid the wrong ones? | `evals/checks.py` — 11 check types |
+| **LLM judge** | Would a reasonable person accept this answer? | `evals/judge.py` + `evals/rubric.md` |
+| **Human calibration** | Is the judge right? | `evals/calibrate.py` |
+
+A case can pass every check and fail the judge — that's the interesting data, not noise to average away. The harness reports those separately instead of collapsing them into one pass rate.
+
+## Results from the run in this repo
+
+Baseline vs. the fix, same 25-case suite, same model (`minimax-m3.1-flash` via Ollama Cloud), temperature 0, 4 November 2026:
+
+| Metric | Baseline | After fix |
+|---|---|---|
+| Deterministic checks | 21/25 | **23/25** |
+| Judge | 18/25 | 19/25 |
+| Average latency | 5.1 s | **3.6 s** |
+| Cases where judge and checks disagree | 5 | 7 |
+
+What moved and what didn't, honestly:
+
+- **The prompt fix worked.** The two-line system prompt became a policy-grounded one (prices, weight surcharges, cut-offs, working days, refund and privacy rules). Weight arithmetic, cut-offs and the Sunday trap now pass.
+- **The tool loop was a real bug.** One multi-issue complaint made 19 tool calls and returned `(agent gave up: too many steps)`. Identical calls now hit a cache and the agent is forced to answer — that case passes all three of its checks and suite latency dropped by a third.
+- **The headline pass rate did not move.** 17/25 either way, because most remaining failures are judge-only: correct answers scored 2–3/5. Six failures after the fix had **every** deterministic check passing.
+- **One genuine regression** was caught by checks the judge would have shipped: the agent read out a customer's full address (`privacy-address`). Two `not_contains` checks and `no_pii` caught it; the judge did not.
+
+## Quick start
+
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and either Docker (for local models) or any OpenAI-compatible endpoint.
 
 ```bash
 cp .env.example .env
-docker compose up -d                                   # starts local LLMs
-docker compose exec ollama ollama pull llama3.2:3b     # the agent (2 GB)
-docker compose exec ollama ollama pull qwen2.5:7b      # the judge (5 GB)
+docker compose up -d                                   # local LLMs
+docker compose exec ollama ollama pull llama3.2:3b     # the agent
+docker compose exec ollama ollama pull qwen2.5:7b      # the judge
 uv run python -m agent.agent "How much is Next Day delivery?"
 ```
 
-✅ You should see an answer mentioning **£6.50**.
+You should get back an answer mentioning **£6.50**. Then run the suite:
 
-💡 Using a hosted model (OpenAI, Gemini, Mistral…) instead? See [docs/providers.md](docs/providers.md).
+```bash
+uv run python -m evals.run --label baseline
+```
 
-## 🪜 The challenge
+Using a hosted model instead? See [docs/providers.md](docs/providers.md).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `uv run python -m agent.agent "…"` | Ask the bot one question |
+| `uv run python -m evals.run --label <name>` | Run the suite, write `results/<ts>-<name>.jsonl` |
+| `uv run python -m evals.compare a.jsonl b.jsonl` | Before/after table with 🟢 fixed / 🔴 broke |
+| `uv run python -m evals.merge_cases` | Merge every `evals/cases*.jsonl`, validating as it goes |
+| `uv run python -m evals.calibrate sheet --results r.jsonl --n 8` | Build a hand-labelling sheet |
+| `uv run python -m evals.calibrate score` | Agreement %, DANGEROUS/CONSERVATIVE split, verbosity bias |
+| `uv run python -m evals.intensive run --label base` | Repeats + held-out split + flaky/inconclusive accounting |
+
+Useful flags: `--only <case-id>`, `--no-judge`, `--workers N`.
+
+### Why the extra tools exist
+
+- **`merge_cases`** — six people writing cases in six files is fast; the runner takes one. It fails loudly on invalid JSON (reported `file:line`), duplicate ids across files, unknown check types, and cases with nothing able to score them. An unknown check type silently scores as "not implemented" and looks like a gap in the demo, so this refuses to write.
+- **`calibrate`** — an uncalibrated judge is a random number generator with good manners. Hand-label 8 answers and it reports agreement, splits disagreements into **DANGEROUS** (judge passed, you failed it — ships a bad answer) and **CONSERVATIVE** (judge failed, you passed it — noise that hides real fixes), and measures **verbosity bias**. On the sample in this repo: 6/8 agreement, 1 dangerous, 1 conservative, and judge-passed answers ran **1.72× longer** than judge-failed ones.
+- **`intensive`** — repeats every case 3× and counts a case once. Pass = all repeats pass, fail = none do, flaky = both; a fix only counts as stable-fail → stable-pass. Crashed agents and broken judges are **inconclusive**, which is never a pass. Held-out cases are shown as ids and totals only, so the person fixing the bot can run them without seeing them.
+
+## Test case format
+
+One JSON object per line, ids prefixed by area so merges can't collide (`ord-`, `pol-`, `saf-`):
+
+```json
+{"id":"ord-014","input":"My parcel is late — where is it?","expected":"Looks up the order, states status and expected date; does not promise a refund","checks":[{"type":"tool_called","value":"get_order"},{"type":"not_contains","value":"refund"}],"tags":["order","dates"]}
+```
+
+Every case needs an `expected` value, or the judge skips it and it shows as un-scored.
+
+Available checks: `contains`, `not_contains`, `matches_regex`, `not_matches_regex`, `tool_called`, `tool_called_with`, `no_tools`, `max_words`, `min_words`, `max_seconds`, `no_pii`.
+
+## Project map
+
+```
+agent/                  the bot under test
+├── agent.py            loop: tools, cached identical calls, forced answer on repeat turns
+├── system_prompt.md    its instructions
+├── tools.py            get_order, search_policies
+└── data/               policies + orders (the ground truth)
+
+evals/
+├── cases.jsonl         core suite
+├── cases-orders.jsonl  order-flow cases
+├── cases-policy.jsonl  price / weight / cut-off cases
+├── cases-safety.jsonl  privacy, injection, adversarial
+├── checks.py           11 deterministic checks
+├── judge.py            LLM judge (rubric-graded, JSON output)
+├── rubric.md           the marking scheme
+├── run.py              runner → results/
+├── compare.py          before vs after
+├── merge_cases.py      validate + merge all case files
+├── calibrate.py        is the judge right?
+└── intensive.py        repeats, held-out split, honest counts
+
+heldout/                cases the fixer never sees
+docs/                   guides: writing cases, providers, stretch goals
+results/                one JSONL per run
+```
+
+## The challenge (event brief)
 
 | Level | Goal | Time |
 |---|---|---|
@@ -33,84 +132,85 @@ uv run python -m agent.agent "How much is Next Day delivery?"
 | 2 | Write the tests | 45 min |
 | 3 | Build the judge | 30 min |
 | 4 | Fix it and prove it | 30 min |
-| ⭐ | Bonus | Any time left |
+| ⭐ | Bonus: tracing, model shoot-outs, red-teaming | any time left |
 
-### Level 1: Meet the agent
+<details>
+<summary><strong>Level 1 — Meet the agent</strong></summary>
 
-1. Skim [agent/data/policies.md](agent/data/policies.md). This is what the bot should know.
-2. Ask it a few questions with `uv run python -m agent.agent "..."`
-3. Run the starter tests:
-   ```bash
-   uv run python -m evals.run --label baseline
-   ```
+1. Skim [agent/data/policies.md](agent/data/policies.md) — the file the tools actually read (`data/` is a mirror). That's what the bot should know.
+2. Ask it a few questions with `uv run python -m agent.agent "..."`.
+3. Run the starter suite: `uv run python -m evals.run --label baseline`.
 
-✅ **Done when:** you see a scorecard. (➖ means "not scored yet". You'll fix that next.)
+**Done when:** you see a scorecard. (➖ means "not scored yet".)
+</details>
 
-### Level 2: Write the tests
+<details>
+<summary><strong>Level 2 — Write the tests</strong></summary>
 
-1. In [evals/checks.py](evals/checks.py), implement `tool_called`.
-2. Add **at least one check of your own** (ideas in the file).
-3. Add **15+ cases** to [evals/cases.jsonl](evals/cases.jsonl) → [how to write good cases](docs/writing-cases.md)
+1. Implement any missing check in [evals/checks.py](evals/checks.py) and add at least one of your own.
+2. Add 15+ cases to [evals/cases.jsonl](evals/cases.jsonl) — see [docs/writing-cases.md](docs/writing-cases.md).
+3. `uv run python -m evals.merge_cases` before you call it done.
 
-✅ **Done when:** 20+ cases, and no ➖ in the Checks column.
+**Done when:** 20+ cases, no ➖ in the Checks column, merge exits 0.
+</details>
 
-### Level 3: Build the judge
+<details>
+<summary><strong>Level 3 — Build the judge</strong></summary>
 
-1. Complete the TODO in [evals/judge.py](evals/judge.py). The rubric is in [evals/rubric.md](evals/rubric.md).
-2. Run the full suite again.
-3. Read 3–4 of the judge's reasons in `results/`. Do you agree?
-4. Is one score enough? A customer, a support manager and a lawyer would each judge the same answer differently. Pick the perspectives that matter to you (readability is one) and decide how to measure each: a check, the judge, or a number. There's no single right set, so be creative.
+1. Complete the TODO in [evals/judge.py](evals/judge.py); the rubric is [evals/rubric.md](evals/rubric.md).
+2. Re-run the suite and read 3–4 of the judge's reasons. Do you agree?
+3. Is one score enough? A customer, a support manager and a lawyer would judge the same answer differently. Pick the perspectives that matter and decide how to measure each — a check, the judge, or a number.
+4. Hand-label 8 answers with `evals/calibrate.py` and report agreement.
 
-✅ **Done when:** every case with an `expected` field gets a score.
+**Done when:** every case with an `expected` field is scored, and you can state your judge's agreement with your own labels.
+</details>
 
-### Level 4: Fix it and prove it
+<details>
+<summary><strong>Level 4 — Fix it and prove it</strong></summary>
 
 1. Pick a failure. Change **one thing**: the [system prompt](agent/system_prompt.md), a [tool](agent/tools.py), or the model.
 2. Re-run and compare:
-   ```bash
-   uv run python -m evals.run --label fix-1
-   uv run python -m evals.compare results/<baseline>.jsonl results/<fix-1>.jsonl
-   ```
 
-💡 Watch for fixes that break something else. And not every fix belongs in the prompt.
+```bash
+uv run python -m evals.run --label fix-1
+uv run python -m evals.compare results/<baseline>.jsonl results/<fix-1>.jsonl
+```
 
-✅ **Done when:** the comparison shows at least one 🟢 fixed and no 🔴 broke.
+Watch for fixes that break something else — and remember not every fix belongs in the prompt.
 
-### ⭐ Bonus
+**Done when:** the comparison shows at least one 🟢 fixed and no 🔴 broke, or you can explain why the trade was worth it.
+</details>
 
-Tracing, judge accuracy, model shoot-outs, red-teaming → [docs/stretch.md](docs/stretch.md)
+## Team workflow
 
-## 🎤 Demo (3 min)
+Six people, one file each — concurrent edits to `cases.jsonl` and `checks.py` are the bottleneck, not writing cases.
+
+- **One case file per person**, ids prefixed by your area (`ord-`, `pol-`, `saf-`).
+- **`merge_cases` before you push.** It catches duplicate ids and unknown check types that would otherwise show up as silent gaps.
+- **Only one person edits `agent/`**, and one change at a time — otherwise you can't attribute the delta.
+- **Only one machine runs the suite.** Several laptops hitting one Ollama instance queue up and look like flakiness.
+
+## Demo (3 min)
 
 - Your scorecard **before and after**
 - One **interesting failure**, and why it happened
-- **Do you trust your judge?** Why or why not?
+- **Do you trust your judge?** Why or why not — with the agreement number
 - **Which metrics did you choose**, and what did each one reveal?
 
-## 🗂️ Project map
-
-```
-agent/                  the bot you're testing
-├── agent.py            agent loop (no need to edit)
-├── system_prompt.md    its instructions ← edit in Level 4
-├── tools.py            get_order, search_policies
-└── data/               policies + orders (the "truth")
-evals/                  your work happens here
-├── cases.jsonl         test cases ← Level 2
-├── checks.py           deterministic checks ← Level 2
-├── judge.py            LLM judge ← Level 3
-├── rubric.md           judge's marking scheme
-├── run.py              runs everything → results/
-└── compare.py          before vs after
-docs/                   short guides
-results/                saved runs (one file per run)
-```
-
-## 🆘 Stuck?
+## Stuck?
 
 | Problem | Try |
 |---|---|
-| Connection error | `docker compose ps` (is Ollama running?) and check `.env` |
+| Connection error | `docker compose ps`, check `.env` |
 | Too slow | `--only <case-id>`, `--no-judge`, or a hosted model |
-| Model ignores tools | Normal for small models! That's a finding: put it in a test. |
-| Anything else | Grab an organiser 🙋 |
+| Model ignores tools | Normal for small models — that's a finding, put it in a test |
+| Judge and checks disagree | Report it, don't average it — that's the interesting case |
+| Merge refuses to write | Read its errors: it names the file and line |
+
+## Credits
+
+Built at **Judge the Agent**, The Friendly Data Meetup London, 4 November 2026, on the challenge material from [dl-lim/friendly-meetup-hackathon](https://github.com/dl-lim/friendly-meetup-hackathon). The harness, cases, tooling and results in this fork are the team's work.
+
+README structure inspired by [awesome-readme](https://github.com/matiassingers/awesome-readme).
+
+MIT.
