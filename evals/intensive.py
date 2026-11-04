@@ -251,6 +251,42 @@ def compare(args: argparse.Namespace) -> None:
     print(report)
 
 
+def flaky(args: argparse.Namespace) -> None:
+    """Split flaky cases: did the bot change what it did, or did only the judge change its mind?
+
+    The judge verdict is cached on identical answers, so a flip always comes with a
+    different answer. If the deterministic checks flip too, the bot behaved differently
+    (bot noise). If the checks agree on every attempt and only the judge flipped, the
+    answers differed in wording only (judge noise).
+    """
+    states = json.loads((RESULTS / f"intensive-{args.label}.json").read_text())["states"]
+    attempts: dict[str, list[dict]] = {}
+    for f in sorted(RESULTS.glob(f"{args.label}-r*.jsonl")):
+        for row in load(f):
+            attempts.setdefault(row["case"]["id"], []).append(row)
+    split = {"visible": Counter(), "heldout": Counter()}
+    ids = {"bot": [], "judge": []}
+    for cid, s in states.items():
+        if s["state"] != "flaky":
+            continue
+        rows = [r for r in attempts.get(cid, []) if attempt_outcome(r) in ("pass", "fail")]
+        checks = {tuple(c.get("passed") for c in r["checks"]) for r in rows}
+        kind = "bot" if len(checks) > 1 else "judge"
+        split[s["split"]][kind] += 1
+        if s["split"] == "visible":
+            ids[kind].append(cid)
+    lines = [f"# Flaky cases in {args.label}: bot noise vs judge noise", "",
+             "| Split | Flaky | Bot changed (checks flipped) | Judge only (checks identical, verdict flipped) |", "|---|---|---|---|"]
+    for sp, c in split.items():
+        if sum(c.values()):
+            lines.append(f"| {sp} | {sum(c.values())} | {c['bot']} | {c['judge']} |")
+    lines += ["", f"Visible, bot noise: {', '.join(ids['bot']) or '-'}", "", f"Visible, judge noise: {', '.join(ids['judge']) or '-'}", "",
+              "Held-out ids stay sealed. A case with no checks lands in 'judge only' by construction.", ""]
+    report = "\n".join(lines)
+    (RESULTS / f"intensive-flaky-{args.label}.md").write_text(report)
+    print(report)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -265,8 +301,10 @@ def main() -> None:
     c = sub.add_parser("compare")
     c.add_argument("before")
     c.add_argument("after")
+    fl = sub.add_parser("flaky")
+    fl.add_argument("label")
     args = parser.parse_args()
-    run(args) if args.cmd == "run" else compare(args)
+    {"run": run, "compare": compare, "flaky": flaky}[args.cmd](args)
 
 
 if __name__ == "__main__":
