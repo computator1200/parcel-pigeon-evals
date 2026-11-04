@@ -28,21 +28,31 @@ A case can pass every check and fail the judge — that's the interesting data, 
 
 ## Results from the run in this repo
 
-Baseline vs. the fix, same 25-case suite, same model (`minimax-m3.1-flash` via Ollama Cloud), temperature 0, 4 November 2026:
+61 visible cases + 66 held-out, **3 attempts each at temperature 0**, agent and judge both `minimax-m3.1-flash` (Ollama Cloud), 4 November 2026. A case counts as a stable pass only if every attempt passed.
 
-| Metric | Baseline | After fix |
+| | Base | After the fix |
 |---|---|---|
-| Deterministic checks | 21/25 | **23/25** |
-| Judge | 18/25 | 19/25 |
-| Average latency | 5.1 s | **3.6 s** |
-| Cases where judge and checks disagree | 5 | 7 |
+| Visible: stable pass / fail / flaky | 26 / 14 / 21 | **34 / 8 / 19** |
+| Held-out: stable pass / fail / flaky | 30 / 6 / 30 | **49 / 1 / 16** |
+| Visible stable fail → pass / pass → fail | — | **2 / 1** |
+| Held-out stable fail → pass / pass → fail | — | **4 / 1** |
+| Visible cases failing on the judge alone (every check passed) | 22 | 20 |
 
-What moved and what didn't, honestly:
+What that supports, and what it doesn't:
 
-- **The prompt fix worked.** The two-line system prompt became a policy-grounded one (prices, weight surcharges, cut-offs, working days, refund and privacy rules). Weight arithmetic, cut-offs and the Sunday trap now pass.
-- **The tool loop was a real bug.** One multi-issue complaint made 19 tool calls and returned `(agent gave up: too many steps)`. Identical calls now hit a cache and the agent is forced to answer — that case passes all three of its checks and suite latency dropped by a third.
-- **The headline pass rate did not move.** 17/25 either way, because most remaining failures are judge-only: correct answers scored 2–3/5. Six failures after the fix had **every** deterministic check passing.
-- **One genuine regression** was caught by checks the judge would have shipped: the agent read out a customer's full address (`privacy-address`). Two `not_contains` checks and `no_pii` caught it; the judge did not.
+- **The fix is real on the held-out set** — 30/66 → 49/66 stable passes, 4 fixed and 1 broken, on cases the person fixing the bot never saw. That's the number to trust most.
+- **Visible +8 stable passes is partly regression to the mean.** 19 cases are still flaky, so 26 → 34 includes movement that would have happened anyway.
+- **Most remaining visible failures are judge-only** — 20 cases pass every deterministic check and fail the judge. Before blaming the bot, look at the judge.
+- **A single run tells you almost nothing.** The 25-case single-run scorecard we ran first said "17/25 before, 17/25 after" with 4 fixed and 4 broken. Same code, same cases, different story: at 34% flakiness, a one-run delta of ±2 is inside the noise.
+
+### Judge self-consistency
+
+Same answer text, three judge calls each, ten cases: **verdict identical in 10/10**, score moved by one point in 4/10 (e.g. 4,5,4). So the judge is stable on identical input — the flakiness above is the agent rewriting its answer, plus borderline cases sitting next to the pass line.
+
+### Calibration
+
+One teammate hand-labelled a random draw of 8 base-run answers blind: **7/8 agreement (95% CI 53–98%)**, one **DANGEROUS** disagreement (judge passed an answer containing a customer's name and address), zero conservative. He then re-scored 8/8 after reading the judge's reasons — that is anchoring, not accuracy, and is reported as such.
+
 
 ## Quick start
 
