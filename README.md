@@ -47,7 +47,9 @@ What that supports, and what it doesn't:
 
 ### Judge self-consistency
 
-Same answer text, three judge calls each, ten cases: **verdict identical in 10/10**, score moved by one point in 4/10 (e.g. 4,5,4). So the judge is stable on identical input — the flakiness above is the agent rewriting its answer, plus borderline cases sitting next to the pass line.
+Same answer text, three judge calls each, ten cases: verdict identical in 10/10, score moved by one point in 4/10 (e.g. 4,5,4).
+
+Read that narrowly: ten cases cannot establish stability — 10/10 is still consistent with a flip rate near 30%. What it does rule out is gross per-call randomness, and it points the finger at the agent rewriting its answers. The judge's real defect is not noise: it is a consistent over-leniency about PII, which repeat runs cannot reveal because identical text is never re-judged.
 
 ### Calibration
 

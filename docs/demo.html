@@ -41,6 +41,13 @@
   .runs{display:flex;gap:3vw;flex-wrap:wrap;margin-top:1vh}
   .run{border:1px solid var(--line);padding:1.8vh 1.6vw;border-radius:6px;min-width:180px}
   .run .s{font-size:clamp(24px,3vw,44px);font-weight:700;line-height:1}
+
+  @media print {
+    html,body{background:#0b0d10 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact}
+    .slide{display:flex !important; position:relative !important; inset:auto !important;
+      height:100vh; page-break-after:always; break-after:page; padding:6vh 7vw}
+    .nav{display:none !important}
+  }
 </style>
 </head>
 <body>
@@ -117,8 +124,9 @@ Why: Our privacy policy states that we only share order details with the person 
   <p class="sub">At temperature 0. Our single-run scorecard showed “17/25 before, 17/25 after” —<br>
   we nearly presented that as a result. It is one sample from a distribution this wide.</p>
   <hr>
-  <p>So the fix is quoted by <b>transition</b>, not total: held-out <b>4</b> stable fail→pass, <b>1</b> pass→fail.
-  Visible <b>2</b> and <b>1</b>. The rest of the movement is flaky cases settling.</p>
+  <p>So quote the <b>transition</b>, not the total: held-out <b>4</b> stable fail→pass, <b>1</b> pass→fail;
+  visible <b>2</b> and <b>1</b>. The rest is flaky cases settling. And say “the pass rate under our judge rose” —
+  never “the bot got better”: the same model wrote the answer and graded it.</p>
 </section>
 
 <!-- 6 -->
@@ -159,8 +167,9 @@ Why: Our privacy policy states that we only share order details with the person 
     <div><div class="k warn">8/8<small>after re-labelling — that's anchoring, not accuracy</small></div></div>
   </div>
   <hr>
-  <p class="sub">Not claiming: that the judge is N% accurate, that the fix improved quality,
-  or that temperature 0 means deterministic.<br>The one defensible improvement is latency — one run, shared cloud inference.</p>
+  <p class="sub">Not claiming: that the judge is N% accurate, that the fix improved quality, that temperature 0 means
+  deterministic, or that ten identical-text repeats prove the judge stable.<br>
+  What we can say about the fix: held-out improved at least as much as visible, so there is no sign we overfitted to the cases we tuned on.</p>
 </section>
 
 <div class="nav">← → or space · f for fullscreen · click to advance</div>
