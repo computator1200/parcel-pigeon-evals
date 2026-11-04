@@ -128,13 +128,24 @@ Why: Our privacy policy states that we only share order details with the person 
   </div>
   <p class="sub">At temperature 0. Our single-run scorecard showed “17/25 before, 17/25 after” —<br>
   we nearly presented that as a result. It is one sample from a distribution this wide.</p>
-  <hr>
-  <p>So quote the <b>transition</b>, not the total: held-out <b>4</b> stable fail→pass, <b>1</b> pass→fail;
-  visible <b>2</b> and <b>1</b>. The rest is flaky cases settling. And say “the pass rate under our judge rose” —
-  never “the bot got better”: the same model wrote the answer and graded it.</p>
 </section>
 
 <!-- 6 -->
+<section class="slide">
+  <div class="tag">Before vs after</div>
+  <h2>Count the transitions, not the totals</h2>
+  <div class="grid">
+    <div><div class="k">4<small>held-out cases: stable fail → stable pass</small></div></div>
+    <div><div class="k">1<small>held-out case: stable pass → stable fail</small></div></div>
+    <div><div class="k">2 / 1<small>the same counts on the visible cases</small></div></div>
+  </div>
+  <hr>
+  <p>The totals rose too — mostly flaky cases settling into passing, so we don't quote them.
+  The hidden set improved at least as much as the visible one, so no sign we overfitted.</p>
+  <p class="sub">And we say “the pass rate under our judge rose”, not “the bot got better” — the same model wrote the answer and graded it.</p>
+</section>
+
+<!-- 7 -->
 <section class="slide">
   <div class="tag">What the variance actually is</div>
   <h2>The bot rewrites; our checks can't see it</h2>
@@ -149,7 +160,7 @@ Why: Our privacy policy states that we only share order details with the person 
   “I can't find an order” — three times out of three. There the judge was right and the check was brittle.</p>
 </section>
 
-<!-- 7 -->
+<!-- 8 -->
 <section class="slide">
   <div class="tag">What we changed because of it</div>
   <h2>Stop asking the judge for things a check can prove</h2>
@@ -162,7 +173,7 @@ Why: Our privacy policy states that we only share order details with the person 
   not because a judge happened to feel strict that run.</p>
 </section>
 
-<!-- 8 -->
+<!-- 9 -->
 <section class="slide">
   <div class="tag">What we claim, and what we don't</div>
   <h2>Numbers with their error bars</h2>
@@ -177,13 +188,13 @@ Why: Our privacy policy states that we only share order details with the person 
   What we can say about the fix: held-out improved at least as much as visible, so there is no sign we overfitted to the cases we tuned on.</p>
 </section>
 
-<!-- 9 -->
+<!-- 10 -->
 <section class="slide">
   <div class="tag">Who built what · six people, one evening</div>
   <h2>One file each</h2>
   <div class="grid credits">
     <div><div class="k">Younis<small>12 order-flow cases · 66 held-out cases · the repeat harness: 3 attempts, stable/flaky accounting, and the split that told us which flakiness was the bot and which our checks couldn't see</small></div></div>
-    <div><div class="k">Safari<small>24 safety cases — privacy, injection, adversarial</small></div></div>
+    <div><div class="k">Mingwei<small>24 safety cases — privacy, injection, adversarial</small></div></div>
     <div><div class="k">Stephanie<small>12 policy cases, including the weight-surcharge boundaries</small></div></div>
     <div><div class="k">Sascoowatch<small>the 11 deterministic checks, and the merge script that refuses bad cases</small></div></div>
     <div><div class="k">Baran<small>the judge and calibration tooling; 8 blind labels that found the dangerous false pass</small></div></div>
