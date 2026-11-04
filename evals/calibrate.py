@@ -50,15 +50,29 @@ def pick(rows: list[dict], n: int, seed: int = 7) -> list[dict]:
     failed = [r for r in both if not r["judge"]["passed"]]
 
     random.seed(seed)
-    chosen: list[dict] = []
     for group in (interesting, failed, passed):
         random.shuffle(group)
-    for group in (interesting, failed, passed):
-        for row in group:
-            if len(chosen) >= n:
-                break
-            if row not in chosen:
-                chosen.append(row)
+
+    # Half the sheet from disagreements (where the judge and the checks differ),
+    # the rest split between passes and fails so agreement isn't measured on
+    # failures alone — a judge that fails everything would otherwise look perfect.
+    chosen: list[dict] = interesting[: max(2, n // 2)]
+    pool: list[dict] = []
+    for i in range(max(len(passed), len(failed))):
+        if i < len(passed):
+            pool.append(passed[i])
+        if i < len(failed):
+            pool.append(failed[i])
+    for row in pool:
+        if len(chosen) >= n:
+            break
+        if row not in chosen:
+            chosen.append(row)
+    for row in interesting + failed + passed:
+        if len(chosen) >= n:
+            break
+        if row not in chosen:
+            chosen.append(row)
     return chosen[:n]
 
 
