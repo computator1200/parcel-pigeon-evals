@@ -39,11 +39,18 @@ def load_results(path: Path) -> list[dict]:
     return rows
 
 
-def pick(rows: list[dict], n: int, seed: int = 7) -> list[dict]:
+def pick(rows: list[dict], n: int, seed: int = 7, random_sample: bool = False) -> list[dict]:
     """Stratify: judge-pass and judge-fail, and anything the checks disagree with."""
     both = [r for r in rows if r.get("judge")]
     if not both:
         return []
+
+    # An unbiased draw. Use this when the number you want to quote is
+    # "how often does the judge agree with a human" — stratified samples pick
+    # the interesting cases by design and cannot support that claim.
+    if random_sample:
+        random.seed(seed)
+        return random.sample(both, min(n, len(both)))
 
     interesting = [r for r in both if r["judge"]["passed"] != bool(r.get("passed"))]
     passed = [r for r in both if r["judge"]["passed"]]
@@ -76,8 +83,8 @@ def pick(rows: list[dict], n: int, seed: int = 7) -> list[dict]:
     return chosen[:n]
 
 
-def write_sheet(rows: list[dict], n: int) -> int:
-    chosen = pick(rows, n)
+def write_sheet(rows: list[dict], n: int, random_sample: bool = False) -> int:
+    chosen = pick(rows, n, random_sample=random_sample)
     if not chosen:
         print("no judged rows in that results file — run without --no-judge first")
         return 2
@@ -195,11 +202,12 @@ def main() -> int:
     s = sub.add_parser("sheet")
     s.add_argument("--results", required=True, type=Path)
     s.add_argument("--n", type=int, default=8)
+    s.add_argument("--random", action="store_true", help="unbiased draw (for a quotable accuracy figure)")
     sub.add_parser("score")
     args = ap.parse_args()
 
     if args.cmd == "sheet":
-        return write_sheet(load_results(args.results), args.n)
+        return write_sheet(load_results(args.results), args.n, random_sample=args.random)
     return score()
 
 
