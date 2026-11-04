@@ -122,3 +122,15 @@ These are the four things that turn a defensible result into an indefensible one
 - **"So what's your pass rate?"** — "I won't give you one from three attempts. Twenty-six of sixty-one stable before, thirty-four after, and twenty-one cases move on their own. The honest number is the transition."
 - **"Was the fix worth it?"** — "Four held-out fails became passes, one broke. Small, and it held on cases the fixer never saw. That's the whole claim."
 - **"Why not just use deterministic checks?"** — "They caught the leak the judge missed, and they failed a correct answer for saying can't find an order instead of no order. Neither signal is a gate alone."
+
+---
+
+## Slide 9 — credits (added later; 9 seconds)
+
+Say, while it is up:
+
+> "Six people, six files. Younis built the repeat harness that showed us the flakiness, Safari wrote the safety cases, Stephanie the policy ones, Sascoowatch the checks, Baran the judge and the calibration, and I did the fix and the runs. Nobody edited the same file."
+
+If you are over time, this is the beat to compress to one line: *"Six people, one file each — that's the only reason this exists."*
+
+Use the 8-second cut already listed above to make room, so the total stays inside 3:00.

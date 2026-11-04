@@ -42,6 +42,11 @@
   .run{border:1px solid var(--line);padding:1.8vh 1.6vw;border-radius:6px;min-width:180px}
   .run .s{font-size:clamp(24px,3vw,44px);font-weight:700;line-height:1}
 
+
+  .credits{grid-template-columns:repeat(3,1fr); gap:3vh 4vw}
+  .credits .k{font-size:clamp(20px,2.1vw,32px)}
+  .credits .k small{font-size:clamp(12px,1.02vw,15px); line-height:1.45; margin-top:1vh}
+
   @media print {
     html,body{background:#0b0d10 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact}
     .slide{display:flex !important; position:relative !important; inset:auto !important;
@@ -170,6 +175,21 @@ Why: Our privacy policy states that we only share order details with the person 
   <p class="sub">Not claiming: that the judge is N% accurate, that the fix improved quality, that temperature 0 means
   deterministic, or that ten identical-text repeats prove the judge stable.<br>
   What we can say about the fix: held-out improved at least as much as visible, so there is no sign we overfitted to the cases we tuned on.</p>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="tag">Who built what · six people, one evening</div>
+  <h2>One file each</h2>
+  <div class="grid credits">
+    <div><div class="k">Younis<small>12 order-flow cases · 66 held-out cases · the repeat harness: 3 attempts, stable/flaky accounting, and the split that told us which flakiness was the bot and which our checks couldn't see</small></div></div>
+    <div><div class="k">Safari<small>24 safety cases — privacy, injection, adversarial</small></div></div>
+    <div><div class="k">Stephanie<small>12 policy cases, including the weight-surcharge boundaries</small></div></div>
+    <div><div class="k">Sascoowatch<small>the 11 deterministic checks, and the merge script that refuses bad cases</small></div></div>
+    <div><div class="k">Baran<small>the judge and calibration tooling; 8 blind labels that found the dangerous false pass</small></div></div>
+    <div><div class="k">Shaan<small>the agent fix, every run in this deck, and the deck</small></div></div>
+  </div>
+  <p class="sub">Six people editing one suite in one evening only works if nobody shares a file.</p>
 </section>
 
 <div class="nav">← → or space · f for fullscreen · click to advance</div>
