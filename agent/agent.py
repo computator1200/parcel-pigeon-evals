@@ -14,7 +14,7 @@ from agent.tools import TOOL_SCHEMAS, TOOLS
 SYSTEM_PROMPT_FILE = Path(__file__).parent / "system_prompt.md"
 
 
-def run_agent(question: str, max_steps: int = 5) -> dict:
+def run_agent(question: str, max_steps: int = 8) -> dict:
     """Answer one customer question. Returns the answer plus what happened along the way."""
     client, model = client_for("AGENT")
     messages = [
@@ -24,11 +24,14 @@ def run_agent(question: str, max_steps: int = 5) -> dict:
     tool_calls, tokens = [], 0
     answer = "(agent gave up: too many steps)"
     start = time.perf_counter()
+    cache: dict[str, str] = {}      # identical calls return the same answer, not a new round trip
+    nudged = False
 
     for _ in range(max_steps):
-        response = client.chat.completions.create(
-            model=model, messages=messages, tools=TOOL_SCHEMAS, temperature=0
-        )
+        kwargs = {"model": model, "messages": messages, "temperature": 0}
+        if not nudged:
+            kwargs["tools"] = TOOL_SCHEMAS
+        response = client.chat.completions.create(**kwargs)
         tokens += response.usage.total_tokens if response.usage else 0
         message = response.choices[0].message
 
@@ -37,14 +40,33 @@ def run_agent(question: str, max_steps: int = 5) -> dict:
             break
 
         messages.append(message.model_dump(exclude_none=True))
+        fresh = 0
         for call in message.tool_calls:
             try:
                 args = json.loads(call.function.arguments or "{}")
-                output = TOOLS[call.function.name](**args)
-            except Exception as e:
-                args, output = call.function.arguments, f"Tool error: {e}"
+            except json.JSONDecodeError:
+                args = {}
+            key = f"{call.function.name}:{json.dumps(args, sort_keys=True)}"
+            if key in cache:
+                output = cache[key]
+            else:
+                try:
+                    output = TOOLS[call.function.name](**args)
+                except Exception as e:  # noqa: BLE001 — a bad tool call must not kill the turn
+                    output = f"Tool error: {e}"
+                cache[key] = output
+                fresh += 1
             tool_calls.append({"name": call.function.name, "args": args})
             messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+
+        if fresh == 0 and not nudged:
+            # every call this turn was a repeat: stop digging and make it answer
+            messages.append({
+                "role": "system",
+                "content": "You already have every fact you need from the tool results above. "
+                           "Do not call any more tools. Answer the customer's question now, briefly.",
+            })
+            nudged = True
 
     return {
         "answer": answer,
